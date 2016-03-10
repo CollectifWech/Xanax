@@ -5,114 +5,6 @@
 	
 'use strict';
 
-/**
- * SimpleUndo is a very basic javascript undo/redo stack for managing histories of basically anything.
- * 
- * options are: {
- * 	* `provider` : required. a function to call on `save`, which should provide the current state of the historized object through the given "done" callback
- * 	* `maxLength` : the maximum number of items in history
- * 	* `opUpdate` : a function to call to notify of changes in history. Will be called on `save`, `undo`, `redo` and `clear`
- * }
- * 
- */
-var SimpleUndo = function(options) {
-	
-	var settings = options ? options : {};
-	var defaultOptions = {
-		provider: function() {
-			throw new Error("No provider!");
-		},
-		maxLength: 30,
-		onUpdate: function() {}
-	};
-	
-	this.provider = (typeof settings.provider != 'undefined') ? settings.provider : defaultOptions.provider;
-	this.maxLength = (typeof settings.maxLength != 'undefined') ? settings.maxLength : defaultOptions.maxLength;
-	this.onUpdate = (typeof settings.onUpdate != 'undefined') ? settings.onUpdate : defaultOptions.onUpdate;
-	
-	this.initialItem = null;
-	this.clear();
-};
-
-function truncate (stack, limit) {
-	while (stack.length > limit) {
-		stack.shift();
-	}
-}
-
-SimpleUndo.prototype.initialize = function(initialItem) {
-	this.stack[0] = initialItem;
-	this.initialItem = initialItem;
-};
-
-
-SimpleUndo.prototype.clear = function() {
-	this.stack = [this.initialItem];
-	this.position = 0;
-	this.onUpdate();
-};
-
-SimpleUndo.prototype.save = function() {
-	this.provider(function(current) {
-		truncate(this.stack, this.maxLength);
-		this.position = Math.min(this.position,this.stack.length - 1);
-		
-		this.stack = this.stack.slice(0, this.position + 1);
-		this.stack.push(current);
-		this.position++;
-		this.onUpdate();
-	}.bind(this));
-};
-
-SimpleUndo.prototype.undo = function(callback) {
-	if (this.canUndo()) {
-		var item =  this.stack[--this.position];
-		this.onUpdate();
-		
-		if (callback) {
-			callback(item);
-		}
-	}
-};
-
-SimpleUndo.prototype.redo = function(callback) {
-	if (this.canRedo()) {
-		var item = this.stack[++this.position];
-		this.onUpdate();
-		
-		if (callback) {
-			callback(item);
-		}
-	}
-};
-
-SimpleUndo.prototype.canUndo = function() {
-	return this.position > 0;
-};
-
-SimpleUndo.prototype.canRedo = function() {
-	return this.position < this.count();
-};
-
-SimpleUndo.prototype.count = function() {
-	return this.stack.length - 1; // -1 because of initial item
-};
-
-
-
-
-
-//exports
-// node module
-if (typeof module != 'undefined') {
-	module.exports = SimpleUndo;
-}
-
-// browser global
-if (typeof window != 'undefined') {
-	window.SimpleUndo = SimpleUndo;
-}
-
 })();
 window.DrawingBoard = typeof DrawingBoard !== "undefined" ? DrawingBoard : {};
 
@@ -325,15 +217,9 @@ window.DrawingBoard = typeof DrawingBoard !== "undefined" ? DrawingBoard : {};
 /**
  * pass the id of the html element to put the drawing board into
  * and some options : {
- *	controls: array of controls to initialize with the drawingboard. 'Colors', 'Size', and 'Navigation' by default
- *		instead of simple strings, you can pass an object to define a control opts
- *		ie ['Color', { Navigation: { reset: false }}]
- *	controlsPosition: "top left" by default. Define where to put the controls: at the "top" or "bottom" of the canvas, aligned to "left"/"right"/"center"
  *	background: background of the drawing board. Give a hex color or an image url "#ffffff" (white) by default
  *	color: pencil color ("#000000" by default)
  *	size: pencil size (3 by default)
- *	webStorage: 'session', 'local' or false ('session' by default). store the current drawing in session or local storage and restore it when you come back
- *	droppable: true or false (false by default). If true, dropping an image on the canvas will include it and allow you to draw on it,
  *	errorMessage: html string to put in the board's element on browsers that don't support canvas.
  *	stretchImg: default behavior of image setting on the canvas: set to the canvas width/height or not? false by default
  * }
@@ -349,23 +235,15 @@ DrawingBoard.Board = function(id, opts) {
 		return false;
 
 	var tpl = '<div class="drawing-board-canvas-wrapper"></canvas><canvas class="drawing-board-canvas"></canvas><div class="drawing-board-cursor drawing-board-utils-hidden"></div></div>';
-	if (this.opts.controlsPosition.indexOf("bottom") > -1) tpl += '<div class="drawing-board-controls"></div>';
-	else tpl = '<div class="drawing-board-controls"></div>' + tpl;
 
 	this.$el.addClass('drawing-board').append(tpl);
 	this.dom = {
 		$canvasWrapper: this.$el.find('.drawing-board-canvas-wrapper'),
 		$canvas: this.$el.find('.drawing-board-canvas'),
 		$cursor: this.$el.find('.drawing-board-cursor'),
-		$controls: this.$el.find('.drawing-board-controls')
 	};
 
-	$.each(['left', 'right', 'center'], $.proxy(function(n, val) {
-		if (this.opts.controlsPosition.indexOf(val) > -1) {
-			this.dom.$controls.attr('data-align', val);
-			return false;
-		}
-	}, this));
+
 
 	this.canvas = this.dom.$canvas.get(0);
 	this.ctx = this.canvas && this.canvas.getContext && this.canvas.getContext('2d') ? this.canvas.getContext('2d') : null;
@@ -377,19 +255,12 @@ DrawingBoard.Board = function(id, opts) {
 		return false;
 	}
 
-	this.storage = this._getStorage();
-
-	this.initHistory();
 	//init default board values before controls are added (mostly pencil color and size)
-	this.reset({ webStorage: false, history: false, background: false });
-	//init controls (they will need the default board values to work like pencil color and size)
-	this.initControls();
+	this.reset({ background: false });
 	//set board's size after the controls div is added
 	this.resize();
 	//reset the board to take all resized space
-	this.reset({ webStorage: false, history: false, background: true });
-	this.restoreWebStorage();
-	this.initDropEvents();
+	this.reset({ background: true });
 	this.initDrawEvents();
 
 	// Gradient mask
@@ -424,8 +295,6 @@ DrawingBoard.Board.defaultOpts = {
 	eraserColor: "background",
 	fillTolerance: 100,
 	fillHack: true, //try to prevent issues with anti-aliasing with a little hack by default
-	webStorage: 'session',
-	droppable: false,
 	enlargeYourContainer: false,
 	errorMessage: "<p>It seems you use an obsolete browser. <a href=\"http://browsehappy.com/\" target=\"_blank\">Update it</a> to start drawing.</p>",
 	stretchImg: false //when setting the canvas img, strech the image at the whole canvas size when this opt is true
@@ -446,7 +315,6 @@ DrawingBoard.Board.prototype = {
 	 * Canvas reset/resize methods: put back the canvas to its default values
 	 *
 	 * depending on options, can set color, size, background back to default values
-	 * and store the reseted canvas in webstorage and history queue
 	 *
 	 * resize values depend on the `enlargeYourContainer` option
 	 */
@@ -455,8 +323,6 @@ DrawingBoard.Board.prototype = {
 		opts = $.extend({
 			color: this.opts.color,
 			size: this.opts.size,
-			webStorage: true,
-			history: true,
 			background: false
 		}, opts);
 
@@ -464,7 +330,6 @@ DrawingBoard.Board.prototype = {
 
 		if (opts.background) {
 			this.resetBackground(this.opts.background, $.proxy(function() {
-				if (opts.history) this.saveHistory();
 			}, this));
 		}
 
@@ -474,11 +339,6 @@ DrawingBoard.Board.prototype = {
 		this.ctx.lineCap = "round";
 		this.ctx.lineJoin = "round";
 		// this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.width);
-
-		if (opts.webStorage) this.saveWebStorage();
-
-		// if opts.background we already dealt with the history
-		if (opts.history && !opts.background) this.saveHistory();
 
 		this.blankCanvas = this.getImg();
 
@@ -495,12 +355,10 @@ DrawingBoard.Board.prototype = {
 		if (bgIsColor) {
 			this.ctx.fillStyle = background;
 			this.ctx.fillRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
-			this.history.initialize(this.getImg());
 			if (callback) callback();
 		} else if (background)
 			this.setImg(background, {
 				callback: $.proxy(function() {
-					this.history.initialize(this.getImg());
 					if (callback) callback();
 				}, this)
 			});
@@ -508,7 +366,6 @@ DrawingBoard.Board.prototype = {
 	},
 
 	resize: function() {
-		this.dom.$controls.toggleClass('drawing-board-controls-hidden', (!this.controls || !this.controls.length));
 
 		var canvasWidth, canvasHeight;
 		var widths = [
@@ -519,8 +376,6 @@ DrawingBoard.Board.prototype = {
 		var heights = [
 			this.$el.getHiddenDimensions().height,
 			DrawingBoard.Utils.boxBorderHeight(this.$el),
-			this.dom.$controls.height(),
-			DrawingBoard.Utils.boxBorderHeight(this.dom.$controls, false, true),
 			DrawingBoard.Utils.boxBorderHeight(this.dom.$canvasWrapper, true, true)
 		];
 		var that = this;
@@ -555,94 +410,6 @@ DrawingBoard.Board.prototype = {
 		this.canvas.height = canvasHeight;
 	},
 
-
-
-	/**
-	 * Controls:
-	 * the drawing board can has various UI elements to control it.
-	 * one control is represented by a class in the namespace DrawingBoard.Control
-	 * it must have a $el property (jQuery object), representing the html element to append on the drawing board at initialization.
-	 *
-	 */
-
-	initControls: function() {
-		this.controls = [];
-		if (!this.opts.controls.length || !DrawingBoard.Control) return false;
-		for (var i = 0; i < this.opts.controls.length; i++) {
-			var c = null;
-			if (typeof this.opts.controls[i] == "string")
-				c = new window['DrawingBoard']['Control'][this.opts.controls[i]](this);
-			else if (typeof this.opts.controls[i] == "object") {
-				for (var controlName in this.opts.controls[i]) break;
-				c = new window['DrawingBoard']['Control'][controlName](this, this.opts.controls[i][controlName]);
-			}
-			if (c) {
-				this.addControl(c);
-			}
-		}
-	},
-
-	//add a new control or an existing one at the position you want in the UI
-	//to add a totally new control, you can pass a string with the js class as 1st parameter and control options as 2nd ie "addControl('Navigation', { reset: false }"
-	//the last parameter (2nd or 3rd depending on the situation) is always the position you want to place the control at
-	addControl: function(control, optsOrPos, pos) {
-		if (typeof control !== "string" && (typeof control !== "object" || !control instanceof DrawingBoard.Control))
-			return false;
-
-		var opts = typeof optsOrPos == "object" ? optsOrPos : {};
-		pos = pos ? pos*1 : (typeof optsOrPos == "number" ? optsOrPos : null);
-
-		if (typeof control == "string")
-			control = new window['DrawingBoard']['Control'][control](this, opts);
-
-		if (pos)
-			this.dom.$controls.children().eq(pos).before(control.$el);
-		else
-			this.dom.$controls.append(control.$el);
-
-		if (!this.controls)
-			this.controls = [];
-		this.controls.push(control);
-		this.dom.$controls.removeClass('drawing-board-controls-hidden');
-	},
-
-
-
-	/**
-	 * History methods: undo and redo drawed lines
-	 */
-
-	initHistory: function() {
-		this.history = new SimpleUndo({
-			maxLength: 30,
-			provider: $.proxy(function(done) {
-				done(this.getImg());
-			}, this),
-			onUpdate: $.proxy(function() {
-				this.ev.trigger('historyNavigation');
-			}, this)
-		});
-	},
-
-	saveHistory: function() {
-		this.history.save();
-	},
-
-	restoreHistory: function(image) {
-		this.setImg(image, {
-			callback: $.proxy(function() {
-				this.saveWebStorage();
-			}, this)
-		});
-	},
-
-	goBackInHistory: function() {
-		this.history.undo($.proxy(this.restoreHistory, this));
-	},
-
-	goForthInHistory: function() {
-		this.history.redo($.proxy(this.restoreHistory, this));
-	},
 
 	/**
 	 * Image methods: you can directly put an image on the canvas, get it in base64 data url or start a download
@@ -685,75 +452,6 @@ DrawingBoard.Board.prototype = {
 		img = img.replace("image/png", "image/octet-stream");
 		window.location.href = img;
 	},
-
-
-
-	/**
-	 * WebStorage handling : save and restore to local or session storage
-	 */
-
-	saveWebStorage: function() {
-		if (window[this.storage]) {
-			window[this.storage].setItem('drawing-board-' + this.id, this.getImg());
-			this.ev.trigger('board:save' + this.storage.charAt(0).toUpperCase() + this.storage.slice(1), this.getImg());
-		}
-	},
-
-	restoreWebStorage: function() {
-		if (window[this.storage] && window[this.storage].getItem('drawing-board-' + this.id) !== null) {
-			this.setImg(window[this.storage].getItem('drawing-board-' + this.id));
-			this.ev.trigger('board:restore' + this.storage.charAt(0).toUpperCase() + this.storage.slice(1), window[this.storage].getItem('drawing-board-' + this.id));
-		}
-	},
-
-	clearWebStorage: function() {
-		if (window[this.storage] && window[this.storage].getItem('drawing-board-' + this.id) !== null) {
-			window[this.storage].removeItem('drawing-board-' + this.id);
-			this.ev.trigger('board:clear' + this.storage.charAt(0).toUpperCase() + this.storage.slice(1));
-		}
-	},
-
-	_getStorage: function() {
-		if (!this.opts.webStorage || !(this.opts.webStorage === 'session' || this.opts.webStorage === 'local')) return false;
-		return this.opts.webStorage + 'Storage';
-	},
-
-
-
-	/**
-	 * Drop an image on the canvas to draw on it
-	 */
-
-	initDropEvents: function() {
-		if (!this.opts.droppable)
-			return false;
-
-		this.dom.$canvas.on('dragover dragenter drop', function(e) {
-			e.stopPropagation();
-			e.preventDefault();
-		});
-
-		this.dom.$canvas.on('drop', $.proxy(this._onCanvasDrop, this));
-	},
-
-	_onCanvasDrop: function(e) {
-		e = e.originalEvent ? e.originalEvent : e;
-		var files = e.dataTransfer.files;
-		if (!files || !files.length || files[0].type.indexOf('image') == -1 || !window.FileReader)
-			return false;
-		var fr = new FileReader();
-		fr.readAsDataURL(files[0]);
-		fr.onload = $.proxy(function(ev) {
-			this.setImg(ev.target.result, {
-				callback: $.proxy(function() {
-					this.saveHistory();
-				}, this)
-			});
-			this.ev.trigger('board:imageDropped', ev.target.result);
-			this.ev.trigger('board:userAction');
-		}, this);
-	},
-
 
 
 	/**
@@ -990,9 +688,6 @@ DrawingBoard.Board.prototype = {
 		if (this.isDrawing && (!e.touches || e.touches.length === 0)) {
 			this.isDrawing = false;
 
-			this.saveWebStorage();
-			this.saveHistory();
-
 			this.ev.trigger('board:stopDrawing', {e: e, coords: coords});
 			this.ev.trigger('board:userAction');
 			e.stopPropagation();
@@ -1046,406 +741,3 @@ DrawingBoard.Board.prototype = {
 		};
 	}
 };
-
-DrawingBoard.Control = function(drawingBoard, opts) {
-	this.board = drawingBoard;
-	this.opts = $.extend({}, this.defaults, opts);
-
-	this.$el = $(document.EElement('div')).addClass('drawing-board-control');
-	if (this.name)
-		this.$el.addClass('drawing-board-control-' + this.name);
-
-	this.board.ev.bind('board:reset', $.proxy(this.onBoardReset, this));
-
-	this.initialize.apply(this, arguments);
-	return this;
-};
-
-DrawingBoard.Control.prototype = {
-
-	name: '',
-
-	defaults: {},
-
-	initialize: function() {
-
-	},
-
-	addToBoard: function() {
-		this.board.addControl(this);
-	},
-
-	onBoardReset: function(opts) {
-
-	}
-
-};
-
-//extend directly taken from backbone.js
-DrawingBoard.Control.extend = function(protoProps, staticProps) {
-	var parent = this;
-	var child;
-	if (protoProps && protoProps.hasOwnProperty('constructor')) {
-		child = protoProps.constructor;
-	} else {
-		child = function(){ return parent.apply(this, arguments); };
-	}
-	$.extend(child, parent, staticProps);
-	var Surrogate = function(){ this.constructor = child; };
-	Surrogate.prototype = parent.prototype;
-	child.prototype = new Surrogate();
-	if (protoProps) $.extend(child.prototype, protoProps);
-	child.__super__ = parent.prototype;
-	return child;
-};
-DrawingBoard.Control.Color = DrawingBoard.Control.extend({
-	name: 'colors',
-
-	initialize: function() {
-		this.initTemplate();
-
-		var that = this;
-		this.$el.on('click', '.drawing-board-control-colors-picker', function(e) {
-			var color = $(this).attr('data-color');
-			that.board.setColor(color);
-			that.$el.find('.drawing-board-control-colors-current')
-				.css('background-color', color)
-				.attr('data-color', color);
-
-			that.board.ev.trigger('color:changed', color);
-			that.$el.find('.drawing-board-control-colors-rainbows').addClass('drawing-board-utils-hidden');
-
-			e.preventDefault();
-		});
-
-		this.$el.on('click', '.drawing-board-control-colors-current', function(e) {
-			that.$el.find('.drawing-board-control-colors-rainbows').toggleClass('drawing-board-utils-hidden');
-			e.preventDefault();
-		});
-
-		$('body').on('click', function(e) {
-			var $target = $(e.target);
-			var $relatedButton = $target.hasClass('drawing-board-control-colors-current') ? $target : $target.closest('.drawing-board-control-colors-current');
-			var $myButton = that.$el.find('.drawing-board-control-colors-current');
-			var $popup = that.$el.find('.drawing-board-control-colors-rainbows');
-			if ( (!$relatedButton.length || $relatedButton.get(0) !== $myButton.get(0)) && !$popup.hasClass('drawing-board-utils-hidden') )
-				$popup.addClass('drawing-board-utils-hidden');
-		});
-	},
-
-	initTemplate: function() {
-		var tpl = '<div class="drawing-board-control-inner">' +
-			'<div class="drawing-board-control-colors-current" style="background-color: {{color}}" data-color="{{color}}"></div>' +
-			'<div class="drawing-board-control-colors-rainbows">{{rainbows}}</div>' +
-			'</div>';
-		var oneColorTpl = '<div class="drawing-board-control-colors-picker" data-color="{{color}}" style="background-color: {{color}}"></div>';
-		var rainbows = '';
-		$.each([0.75, 0.5, 0.25], $.proxy(function(key, val) {
-			var i = 0;
-			var additionalColor = null;
-			rainbows += '<div class="drawing-board-control-colors-rainbow">';
-			if (val == 0.25) additionalColor = this._rgba(0, 0, 0, 1);
-			if (val == 0.5) additionalColor = this._rgba(150, 150, 150, 1);
-			if (val == 0.75) additionalColor = this._rgba(255, 255, 255, 1);
-			rainbows += DrawingBoard.Utils.tpl(oneColorTpl, {color: additionalColor.toString() });
-			while (i <= 330) {
-				rainbows += DrawingBoard.Utils.tpl(oneColorTpl, {color: this._hsl2Rgba(this._hsl(i-60, 1, val)).toString() });
-				i+=30;
-			}
-			rainbows += '</div>';
-		}, this));
-
-		this.$el.append( $( DrawingBoard.Utils.tpl(tpl, {color: this.board.color, rainbows: rainbows }) ) );
-		this.$el.find('.drawing-board-control-colors-rainbows').addClass('drawing-board-utils-hidden');
-	},
-
-	onBoardReset: function(opts) {
-		this.board.setColor(this.$el.find('.drawing-board-control-colors-current').attr('data-color'));
-	},
-
-	_rgba: function(r, g, b, a) {
-		return { r: r, g: g, b: b, a: a, toString: function() { return "rgba(" + r +", " + g + ", " + b + ", " + a + ")"; } };
-	},
-
-	_hsl: function(h, s, l) {
-		return { h: h, s: s, l: l, toString: function() { return "hsl(" + h +", " + s*100 + "%, " + l*100 + "%)"; } };
-	},
-
-	_hex2Rgba: function(hex) {
-		var num = parseInt(hex.substring(1), 16);
-		return this._rgba(num >> 16, num >> 8 & 255, num & 255, 1);
-	},
-
-	//conversion function (modified a bit) taken from http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
-	_hsl2Rgba: function(hsl) {
-		var h = hsl.h/360, s = hsl.s, l = hsl.l, r, g, b;
-		function hue2rgb(p, q, t) {
-			if(t < 0) t += 1;
-			if(t > 1) t -= 1;
-			if(t < 1/6) return p + (q - p) * 6 * t;
-			if(t < 1/2) return q;
-			if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-			return p;
-		}
-		if (s === 0) {
-			r = g = b = l; // achromatic
-		} else {
-			var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-			var p = 2 * l - q;
-			r = Math.floor( (hue2rgb(p, q, h + 1/3)) * 255);
-			g = Math.floor( (hue2rgb(p, q, h)) * 255);
-			b = Math.floor( (hue2rgb(p, q, h - 1/3)) * 255);
-		}
-		return this._rgba(r, g, b, 1);
-	}
-});
-DrawingBoard.Control.DrawingMode = DrawingBoard.Control.extend({
-
-	name: 'drawingmode',
-
-	defaults: {
-		pencil: true,
-		eraser: true,
-		filler: true
-	},
-
-	initialize: function() {
-
-		this.prevMode = this.board.getMode();
-
-		$.each(["pencil", "eraser", "filler"], $.proxy(function(k, value) {
-			if (this.opts[value]) {
-				this.$el.append('<button class="drawing-board-control-drawingmode-' + value + '-button" data-mode="' + value + '"></button>');
-			}
-		}, this));
-
-		this.$el.on('click', 'button[data-mode]', $.proxy(function(e) {
-			var value = $(e.currentTarget).attr('data-mode');
-			var mode = this.board.getMode();
-			if (mode !== value) this.prevMode = mode;
-			var newMode = mode === value ? this.prevMode : value;
-			this.board.setMode( newMode );
-			e.preventDefault();
-		}, this));
-
-		this.board.ev.bind('board:mode', $.proxy(function(mode) {
-			this.toggleButtons(mode);
-		}, this));
-
-		this.toggleButtons( this.board.getMode() );
-	},
-
-	toggleButtons: function(mode) {
-		this.$el.find('button[data-mode]').each(function(k, item) {
-			var $item = $(item);
-			$item.toggleClass('active', mode === $item.attr('data-mode'));
-		});
-	}
-
-});
-
-DrawingBoard.Control.Navigation = DrawingBoard.Control.extend({
-
-	name: 'navigation',
-
-	defaults: {
-		back: true,
-		forward: true,
-		reset: true
-	},
-
-	initialize: function() {
-		var el = '';
-		if (this.opts.back) el += '<button class="drawing-board-control-navigation-back">&larr;</button>';
-		if (this.opts.forward) el += '<button class="drawing-board-control-navigation-forward">&rarr;</button>';
-		if (this.opts.reset) el += '<button class="drawing-board-control-navigation-reset">&times;</button>';
-		this.$el.append(el);
-
-		if (this.opts.back) {
-			var $back = this.$el.find('.drawing-board-control-navigation-back');
-			this.board.ev.bind('historyNavigation', $.proxy(this.updateBack, this, $back));
-			this.$el.on('click', '.drawing-board-control-navigation-back', $.proxy(function(e) {
-				this.board.goBackInHistory();
-				e.preventDefault();
-			}, this));
-
-			this.updateBack($back);
-		}
-
-		if (this.opts.forward) {
-			var $forward = this.$el.find('.drawing-board-control-navigation-forward');
-			this.board.ev.bind('historyNavigation', $.proxy(this.updateForward, this, $forward));
-			this.$el.on('click', '.drawing-board-control-navigation-forward', $.proxy(function(e) {
-				this.board.goForthInHistory();
-				e.preventDefault();
-			}, this));
-
-			this.updateForward($forward);
-		}
-
-		if (this.opts.reset) {
-			this.$el.on('click', '.drawing-board-control-navigation-reset', $.proxy(function(e) {
-				this.board.reset({ background: true });
-				e.preventDefault();
-			}, this));
-		}
-	},
-
-	updateBack: function($back) {
-		if (this.board.history.canUndo()) {
-			$back.removeAttr('disabled');
-		} else {
-			$back.attr('disabled', 'disabled');
-		}
-	},
-
-	updateForward: function($forward) {
-		if (this.board.history.canRedo()) {
-			$forward.removeAttr('disabled');
-		} else {
-			$forward.attr('disabled', 'disabled');
-		}
-	}
-});
-DrawingBoard.Control.Size = DrawingBoard.Control.extend({
-
-	name: 'size',
-
-	defaults: {
-		type: "auto",
-		dropdownValues: [1, 3, 6, 10, 20, 30, 40, 50],
-		min: 1,
-		max: 50
-	},
-
-	types: ['dropdown', 'range'],
-
-	initialize: function() {
-		if (this.opts.type == "auto")
-			this.opts.type = this._iHasRangeInput() ? 'range' : 'dropdown';
-		var tpl = $.inArray(this.opts.type, this.types) > -1 ? this['_' + this.opts.type + 'Template']() : false;
-		if (!tpl) return false;
-
-		this.val = this.board.opts.size;
-
-		this.$el.append( $( tpl ) );
-		this.$el.attr('data-drawing-board-type', this.opts.type);
-		this.updateView();
-
-		var that = this;
-
-		if (this.opts.type == "range") {
-			this.$el.on('change', '.drawing-board-control-size-range-input', function(e) {
-				that.val = $(this).val();
-				that.updateView();
-
-				that.board.ev.trigger('size:changed', that.val);
-
-				e.preventDefault();
-			});
-		}
-
-		if (this.opts.type == "dropdown") {
-			this.$el.on('click', '.drawing-board-control-size-dropdown-current', $.proxy(function(e) {
-				this.$el.find('.drawing-board-control-size-dropdown').toggleClass('drawing-board-utils-hidden');
-			}, this));
-
-			this.$el.on('click', '[data-size]', function(e) {
-				that.val = parseInt($(this).attr('data-size'), 0);
-				that.updateView();
-
-				that.board.ev.trigger('size:changed', that.val);
-
-				e.preventDefault();
-			});
-		}
-	},
-
-	_rangeTemplate: function() {
-		var tpl = '<div class="drawing-board-control-inner" title="{{size}}">' +
-			'<input type="range" min="{{min}}" max="{{max}}" value="{{size}}" step="1" class="drawing-board-control-size-range-input">' +
-			'<span class="drawing-board-control-size-range-current"></span>' +
-			'</div>';
-		return DrawingBoard.Utils.tpl(tpl, {
-			min: this.opts.min,
-			max: this.opts.max,
-			size: this.board.opts.size
-		});
-	},
-
-	_dropdownTemplate: function() {
-		var tpl = '<div class="drawing-board-control-inner" title="{{size}}">' +
-			'<div class="drawing-board-control-size-dropdown-current"><span></span></div>' +
-			'<ul class="drawing-board-control-size-dropdown">';
-		$.each(this.opts.dropdownValues, function(i, size) {
-			tpl += DrawingBoard.Utils.tpl(
-				'<li data-size="{{size}}"><span style="width: {{size}}px; height: {{size}}px; border-radius: {{size}}px;"></span></li>',
-				{ size: size }
-			);
-		});
-		tpl += '</ul></div>';
-		return tpl;
-	},
-
-	onBoardReset: function(opts) {
-		this.updateView();
-	},
-
-	updateView: function() {
-		var val = this.val;
-		this.board.ctx.lineWidth = val;
-
-		this.$el.find('.drawing-board-control-size-range-current, .drawing-board-control-size-dropdown-current span').css({
-			width: val + 'px',
-			height: val + 'px',
-			borderRadius: val + 'px',
-			marginLeft: -1*val/2 + 'px',
-			marginTop: -1*val/2 + 'px'
-		});
-
-		this.$el.find('.drawing-board-control-inner').attr('title', val);
-
-		if (this.opts.type == 'dropdown') {
-			var closest = null;
-			$.each(this.opts.dropdownValues, function(i, size) {
-				if (closest === null || Math.abs(size - val) < Math.abs(closest - val))
-					closest = size;
-			});
-			this.$el.find('.drawing-board-control-size-dropdown').addClass('drawing-board-utils-hidden');
-		}
-	},
-
-	_iHasRangeInput: function() {
-		var inputElem  = document.createElement('input'),
-			smile = ':)',
-			docElement = document.documentElement,
-			inputElemType = 'range',
-			available;
-		inputElem.setAttribute('type', inputElemType);
-		available = inputElem.type !== 'text';
-		inputElem.value         = smile;
-		inputElem.style.cssText = 'position:absolute;visibility:hidden;';
-		if ( /^range$/.test(inputElemType) && inputElem.style.WebkitAppearance !== undefined ) {
-			docElement.appendChild(inputElem);
-			defaultView = document.defaultView;
-			available = defaultView.getComputedStyle &&
-				defaultView.getComputedStyle(inputElem, null).WebkitAppearance !== 'textfield' &&
-				(inputElem.offsetHeight !== 0);
-			docElement.removeChild(inputElem);
-		}
-		return !!available;
-	}
-});
-DrawingBoard.Control.Download = DrawingBoard.Control.extend({
-
-	name: 'download',
-
-	initialize: function() {
-		this.$el.append('<button class="drawing-board-control-download-button"></button>');
-		this.$el.on('click', '.drawing-board-control-download-button', $.proxy(function(e) {
-			this.board.downloadImg();
-			e.preventDefault();
-		}, this));
-	}
-
-});
