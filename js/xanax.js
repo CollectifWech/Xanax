@@ -54,8 +54,8 @@ var activeSection = 0;
 
 function changeSection(index) {
 	if (activeSection == 3) {
-		dropTool('black-pen');
-		dropTool('white-pen');
+		dropTool('black-pencil');
+		dropTool('white-pencil');
 		dropTool('eraser');
 	}
  	activeSection += index;
@@ -117,7 +117,7 @@ function pickTool(id, mode, color, lineWidth, cursor) {
 	$.each(tools, function(index, tool) {
 		tool.id == id ? $(tool).css('opacity', '0.2') : $(tool).css('opacity', '1');
 	});
-	$('body').css('cursor', "url('img/cursor-"+id+".png'), auto");
+	$('body').css('cursor', "url('img/cursor-"+id+".png'), crosshair");
 	activeTool = id;
 }
 function dropTool(id) {
@@ -126,11 +126,11 @@ function dropTool(id) {
 	$('body').css('cursor', "auto");
 	activeTool = '';
 }
-$('#black-pen').click(function() {
-	activeTool == "black-pen" ? dropTool('black-pen') : pickTool('black-pen', 'pencil', '#000', 2)
+$('#black-pencil').click(function() {
+	activeTool == "black-pencil" ? dropTool('black-pencil') : pickTool('black-pencil', 'pencil', '#000', 2)
 });
-$('#white-pen').click(function() {
-	activeTool == "white-pen" ? dropTool('white-pen') : pickTool('white-pen', 'pencil', '#FFF', 2)
+$('#white-pencil').click(function() {
+	activeTool == "white-pencil" ? dropTool('white-pencil') : pickTool('white-pencil', 'pencil', '#FFF', 2)
 });
 $('#eraser').click(function() {
 	activeTool == "eraser" ? dropTool('eraser') : pickTool('eraser', 'eraser', '#FFF', 40);
