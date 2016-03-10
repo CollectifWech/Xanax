@@ -1,0 +1,153 @@
+body {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 100%;
+	margin: 0;
+	background-color: rgb(7,7,7);
+	font-family: 'Vollkorn', serif;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+img {
+	width: 75%;
+	height: auto;
+}
+a {
+	color: white;
+	text-decoration: none;
+}
+h1,p {
+	font-size: 1.6rem;
+	margin: 0;
+	line-height: 2rem;
+	color: white;
+	letter-spacing: 0.03rem;
+	font-weight: normal;
+	margin-bottom: 2rem;
+	display: inline-block;
+}
+.small {
+	font-size: 0.8rem;
+}
+ #logo {
+ 	fill: white;
+    position: absolute;
+    top: 2.5rem;
+    right: 2.5rem;
+    width: 1.8rem;
+    height: 1.8rem;
+ }
+.main-container {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	max-width: 1280px;
+	height: 100%;
+	max-height: 930px;
+	background-image: url("../img/xanax03.jpg");
+	background-size: 83%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+.section-container{
+	width: 70%;
+	position: relative;
+	z-index: 1;
+	display: inline-block;
+	opacity: 0;
+	display: none;
+}
+.section-container:after {
+  padding-top: 50.9%;
+  /* 16:9 ratio */
+  display: block;
+  content: '';
+}
+.section-container#accueil {
+	opacity: 1;
+	display: inline-block;
+}
+.section-content {
+	display: flex;
+ 	position: absolute;
+ 	top: 0;
+ 	bottom: 0;
+ 	right: 0;
+ 	left: 0;
+	align-items: center;
+}
+.left-page{
+	width: 50%;
+	padding-right:5%;
+	text-align: center;
+}
+.right-page{
+	width: 50%;
+	text-align: center;
+	padding-left:5%;	
+}
+.section-content img {
+	opacity: 0.75;
+	margin-bottom: 1rem;
+	float: center;
+}
+.section-content img:last-child {
+	margin: 0;
+}
+#arrows {
+	width: 50%;
+	height: auto;
+	margin: 0;
+}
+
+ /* Drawing section
+ *********************************/
+ .section-container#drawing{
+	width: 72.5%;
+	position: relative;
+	z-index: 1;
+	display: inline-block;
+	opacity: 0;
+	display: none;
+}
+.section-container#drawing:after {
+  padding-top: 60%; /* 16:9 ratio */
+  display: block;
+  content: '';
+}
+#canvas {
+ 	position: absolute;
+ 	width: 100%;
+    height: 100%;
+    opacity: 0.5;
+    border: none;
+ }
+.drawing-control img {
+	width: auto;
+	margin: 0;
+}
+.drawing-control #black-pen {
+	height: 50%;
+	max-height: 300px;
+ 	position: absolute;
+ 	right: -10%;
+ 	bottom: 0;
+ }
+ .drawing-control #white-pen {
+ 	height: 50%;
+ 	max-height: 300px;
+ 	position: absolute;
+ 	right: -15%;
+ 	bottom: 0;
+ }
+ .drawing-control #eraser {
+ 	height: 25%;
+ 	max-height: 120px;
+ 	position: absolute;
+ 	left: -10%;
+ 	bottom: 0; 
+ }
