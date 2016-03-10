@@ -26,7 +26,7 @@ preload(
 
 // Background images
 function changeimg(name, number){
-	var index=parseInt(name.slice(-8,-6));
+	var index = parseInt(name.match(/\d+/g));
 	var indexetape=(index+number)+"";
 	if (indexetape == "54") {
 		indexetape = "1";
