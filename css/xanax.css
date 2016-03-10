@@ -16,7 +16,7 @@ img {
 }
 a {
 	color: white;
-	text-decoration: none;
+	text-decoration: underline;
 }
 h1,p {
 	font-size: 1.6rem;
@@ -29,7 +29,8 @@ h1,p {
 	display: inline-block;
 }
 .small {
-	font-size: 0.8rem;
+	font-size: 1rem;
+	line-height: 1.5rem;
 }
  #logo {
  	fill: white;
